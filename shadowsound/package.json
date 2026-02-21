@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint --max-warnings=0",
     "lint:fix": "expo lint --fix && npx prettier --write .",
-    "test": "jest"
+    "test": "jest",
+    "clean": "rm -rf node_modules && npm install"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -77,5 +78,9 @@
     "ts-jest": "^29.4.6",
     "typescript": "~5.9.3"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "minimatch": ">=10.2.1",
+    "glob": ">=11.0.0"
+  }
 }
