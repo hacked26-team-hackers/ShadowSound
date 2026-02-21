@@ -640,21 +640,13 @@ In **pocket mode**, the app asks the user to configure which direction the phone
 - Adaptive sensitivity based on environment
 - User feedback loop for model improvement
 
-**3. Wearable Companion (Optional)**
-- Relay alerts to paired Apple Watch or Wear OS watch for secondary haptic
-- Phone remains the primary sensor and processor
-
 ### Medium-term (1–2 years)
 
-**1. Multi-device Support**
-- Bone conduction headphones integration
-- Smart glasses compatibility
-
-**2. Advanced Sound Differentiation**
+**1. Advanced Sound Differentiation**
 - Distinguish specific vehicle types (emergency, motorcycle)
 - Recognize pets (own dog vs. others)
 
-**3. Location-Aware Intelligence**
+**2. Location-Aware Intelligence**
 - Adjust sensitivity by GPS location
 - Sidewalk vs. street detection
 - Building entry/exit awareness
