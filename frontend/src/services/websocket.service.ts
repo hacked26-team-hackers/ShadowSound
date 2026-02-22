@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -44,8 +45,13 @@ export type OnConnectionChangeCallback = (connected: boolean) => void;
 
 // ── Config ───────────────────────────────────────────────────────────────
 
-/** Default backend URL — change this to your machine's IP for real-device testing */
-const DEFAULT_WS_URL = "ws://localhost:8000/ws/audio";
+/** Default backend URL — automatically resolves to dev machine IP for Expo physical devices */
+let defaultWsUrl = "ws://localhost:8000/ws/audio";
+if (__DEV__ && Platform.OS !== "web" && Constants.expoConfig?.hostUri) {
+    const ip = Constants.expoConfig.hostUri.split(":")[0];
+    defaultWsUrl = `ws://${ip}:8000/ws/audio`;
+}
+const DEFAULT_WS_URL = defaultWsUrl;
 
 /** How long to wait before reconnecting (ms) */
 const RECONNECT_DELAY_MS = 2000;

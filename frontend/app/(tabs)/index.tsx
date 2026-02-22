@@ -44,7 +44,7 @@ export default function HomeScreen() {
     chunksSent,
     startListening,
     stopListening,
-  } = useSoundDetection(undefined, true); // mock=true until model is trained
+  } = useSoundDetection(undefined, false); // Set mock=false to use real YAMNet model
 
   // ── Status indicator state ───────────────────────────────────────
 
