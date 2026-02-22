@@ -51,7 +51,7 @@ if (__DEV__ && Platform.OS !== "web" && Constants.expoConfig?.hostUri) {
     const ip = Constants.expoConfig.hostUri.split(":")[0];
     defaultWsUrl = `ws://${ip}:8000/ws/audio`;
 }
-const DEFAULT_WS_URL = defaultWsUrl;
+const DEFAULT_WS_URL = "ws://192.168.1.67:8000/ws/audio";
 
 /** How long to wait before reconnecting (ms) */
 const RECONNECT_DELAY_MS = 2000;
