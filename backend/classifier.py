@@ -144,11 +144,26 @@ class SoundClassifier:
         self, audio_bytes: bytes, original_sr: int
     ) -> np.ndarray | None:
         """Decode audio bytes → 16 kHz mono float32 waveform."""
+        import tempfile
+        import os
+        
         try:
-            # Load audio using librosa directly from bytes
-            waveform, _ = librosa.load(
-                io.BytesIO(audio_bytes), sr=TARGET_SR, mono=True
-            )
+            # Write bytes to a temporary file so librosa/audioread can decode
+            # Android/iOS streams (m4a, amr, pcm) that soundfile can't read directly from memory
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = tmp.name
+
+            try:
+                # Load audio using librosa from the temporary file
+                waveform, _ = librosa.load(
+                    tmp_path, sr=TARGET_SR, mono=True
+                )
+            finally:
+                # Ensure we clean up the temporary file
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+
             return waveform.astype(np.float32)
 
         except Exception as exc:
