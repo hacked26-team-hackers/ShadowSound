@@ -4,6 +4,7 @@ import {
     webSocketService,
     type Detection,
 } from "@/src/services/websocket.service";
+import { triggerHapticPattern } from "@/src/services/haptic-engine.service";
 
 export interface SoundDetectionState {
     /** Mic permission status: null = pending, true = granted, false = denied */
@@ -79,6 +80,9 @@ export function useSoundDetection(
                     const top = detections[0];
                     setLastDetection(top);
                     setRecentDetections((prev: Detection[]) => [top, ...prev].slice(0, MAX_RECENT));
+
+                    // Trigger haptic feedback for the detected sound
+                    triggerHapticPattern(top.haptic_pattern);
                 }
             },
             // onConnectionChange callback
@@ -89,12 +93,13 @@ export function useSoundDetection(
         );
 
         // 2. Start audio capture — each chunk is sent over the WebSocket
-        await startCapture((base64Chunk) => {
+        await startCapture((base64Chunk: string) => {
             webSocketService.sendAudioChunk(base64Chunk, 16_000);
             chunksSentRef.current += 1;
             setChunksSent(chunksSentRef.current);
         });
     }, [hasPermission, startCapture, mock]);
+
 
     // ── Stop everything ──────────────────────────────────────────────
 

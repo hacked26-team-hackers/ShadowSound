@@ -6,8 +6,8 @@ interface UseAudioCaptureReturn {
     hasPermission: boolean | null;
     /** Whether audio is currently being captured */
     isCapturing: boolean;
-    /** Start the chunked capture loop */
-    startCapture: () => Promise<void>;
+    /** Start the chunked capture loop, optionally forwarding chunks to an external callback */
+    startCapture: (externalOnChunk?: (base64: string) => void) => Promise<void>;
     /** Stop the capture loop */
     stopCapture: () => Promise<void>;
     /** The most recent base64-encoded audio chunk */
