@@ -1,12 +1,8 @@
 """
 Shadow-Sound — Sound Classifier
 
-Loads a custom-trained CNN model (Keras .keras / .h5) that classifies
-short audio clips into the 5 safety-critical categories used by the app.
-
-Expected model:
-  - Input : mel-spectrogram (128 mel bins × N time frames, 1 channel)
-  - Output: softmax over 5 classes
+Loads the YAMNet model locally to classify short audio clips 
+into the 5 safety-critical categories used by the app.
 """
 
 import io
@@ -15,7 +11,7 @@ import numpy as np
 import librosa
 import tensorflow as tf
 
-# ── Class labels (indices must match training label order) ────────────────
+# ── Class labels (our 5 classes) ────────────────
 
 CLASS_NAMES: list[str] = [
     "alarm",
@@ -43,26 +39,53 @@ HAPTIC_PATTERN: dict[str, str] = {
     "alarm": "alternating_short_long",
 }
 
-# ── Audio settings (must match training config) ──────────────────────────
+# Mapping from YAMNet classes to our 5 categories
+# We only list YAMNet indices that map to our critical sounds.
+YAMNET_TO_TARGET = {
+    # Shouting
+    22: "shouting",
+    23: "shouting",
+    24: "shouting",
+    # Dog barking
+    73: "dog_barking",
+    74: "dog_barking",
+    75: "dog_barking",
+    76: "dog_barking", # Growl
+    # Horn
+    311: "horn",
+    312: "horn",
+    313: "horn",
+    # Emergency Siren
+    322: "emergency_siren",
+    323: "emergency_siren",
+    324: "emergency_siren",
+    325: "emergency_siren",
+    326: "emergency_siren",
+    # Alarm
+    382: "alarm",
+    388: "alarm",
+    389: "alarm",
+    393: "alarm",
+    394: "alarm",
+}
 
-TARGET_SR = 16000       # 16 kHz mono
-CLIP_DURATION = 2.0     # seconds
-N_MELS = 128            # mel bins
-HOP_LENGTH = 512        # spectrogram hop
-CONFIDENCE_THRESHOLD = 0.85
+# ── Audio settings ──────────────────────────
+
+TARGET_SR = 16000       # YAMNet requires 16 kHz mono
+CONFIDENCE_THRESHOLD = 0.1 # YAMNet gives spread out probabilities, so 0.1 is okay for detecting presence.
 
 # Default model path (relative to this file)
-DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "sound_model.keras")
+DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "yamnet", "yamnet-tensorflow2-yamnet-v1")
 
 
 class SoundClassifier:
-    """Loads a custom Keras model once and exposes a classify() method."""
+    """Loads the YAMNet model once and exposes a classify() method."""
 
     def __init__(self, model_path: str | None = None) -> None:
         path = model_path or DEFAULT_MODEL_PATH
-        print(f"[classifier] Loading model from {path} …")
-        self.model = tf.keras.models.load_model(path)
-        print(f"[classifier] Model loaded — {len(CLASS_NAMES)} classes.")
+        print(f"[classifier] Loading YAMNet model from {path} …")
+        self.model = tf.saved_model.load(path)
+        print("[classifier] YAMNet Model loaded.")
 
     # ── public API ─────────────────────────────────────────────────────
 
@@ -72,7 +95,7 @@ class SoundClassifier:
         sample_rate: int = TARGET_SR,
     ) -> dict | None:
         """
-        Classify raw audio bytes.
+        Classify raw audio bytes using YAMNet.
 
         Parameters
         ----------
@@ -86,59 +109,47 @@ class SoundClassifier:
         dict | None
             Detection dict or None if nothing exceeds threshold.
         """
-        spectrogram = self._audio_to_spectrogram(audio_bytes, sample_rate)
-        if spectrogram is None:
+        waveform = self._audio_to_waveform(audio_bytes, sample_rate)
+        if waveform is None:
             return None
 
-        # Model expects batch dimension: (1, n_mels, time_frames, 1)
-        input_tensor = np.expand_dims(spectrogram, axis=(0, -1))
+        # Run YAMNet model
+        scores, embeddings, spectrogram = self.model(waveform)
+        
+        # average scores across frames
+        mean_scores = np.mean(scores.numpy(), axis=0)
+        
+        # find the highest scoring mapped class
+        best_mapped_class = None
+        best_mapped_score = 0.0
+        
+        for idx, target_class in YAMNET_TO_TARGET.items():
+            if mean_scores[idx] > best_mapped_score:
+                best_mapped_score = float(mean_scores[idx])
+                best_mapped_class = target_class
 
-        predictions = self.model.predict(input_tensor, verbose=0)[0]
-        top_idx = int(np.argmax(predictions))
-        confidence = float(predictions[top_idx])
-
-        if confidence < CONFIDENCE_THRESHOLD:
+        if best_mapped_score < CONFIDENCE_THRESHOLD or best_mapped_class is None:
             return None
 
-        sound_type = CLASS_NAMES[top_idx]
         return {
-            "sound_type": sound_type,
-            "confidence": round(confidence, 3),
-            "urgency": URGENCY.get(sound_type, "low"),
-            "haptic_pattern": HAPTIC_PATTERN.get(sound_type, "single_tap"),
+            "sound_type": best_mapped_class,
+            "confidence": round(best_mapped_score, 3),
+            "urgency": URGENCY.get(best_mapped_class, "low"),
+            "haptic_pattern": HAPTIC_PATTERN.get(best_mapped_class, "single_tap"),
         }
 
     # ── internals ──────────────────────────────────────────────────────
 
-    def _audio_to_spectrogram(
+    def _audio_to_waveform(
         self, audio_bytes: bytes, original_sr: int
     ) -> np.ndarray | None:
-        """Decode audio bytes → 16 kHz mono → mel-spectrogram."""
+        """Decode audio bytes → 16 kHz mono float32 waveform."""
         try:
+            # Load audio using librosa directly from bytes
             waveform, _ = librosa.load(
                 io.BytesIO(audio_bytes), sr=TARGET_SR, mono=True
             )
-
-            # Pad or trim to fixed duration
-            target_len = int(TARGET_SR * CLIP_DURATION)
-            if len(waveform) < target_len:
-                waveform = np.pad(waveform, (0, target_len - len(waveform)))
-            else:
-                waveform = waveform[:target_len]
-
-            # Compute mel-spectrogram (log scale)
-            mel_spec = librosa.feature.melspectrogram(
-                y=waveform,
-                sr=TARGET_SR,
-                n_mels=N_MELS,
-                hop_length=HOP_LENGTH,
-            )
-            log_mel = librosa.power_to_db(mel_spec, ref=np.max)
-
-            # Normalize to [0, 1]
-            log_mel = (log_mel - log_mel.min()) / (log_mel.max() - log_mel.min() + 1e-8)
-
-            return log_mel.astype(np.float32)
+            return waveform.astype(np.float32)
 
         except Exception as exc:
             print(f"[classifier] Failed to process audio: {exc}")
