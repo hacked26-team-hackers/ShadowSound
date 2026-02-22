@@ -3,36 +3,11 @@ import { PageContainer } from "@/components/page-container";
 import StatusIndicator from "@/components/ui/StatusIndicator";
 import PermissionGate from "@/components/ui/PermissionGate";
 import Button from "@/components/ui/Button";
+import SonarPulse from "@/components/ui/SonarPulse";
+import DetectionCard from "@/components/ui/DetectionCard";
+import SoundCategoryGrid from "@/components/ui/SoundCategoryGrid";
 import { useSoundDetection } from "@/hooks/useSoundDetection";
 import type { Detection } from "@/src/services/websocket.service";
-
-// ── Emoji map for sound types ────────────────────────────────────────────
-
-const SOUND_ICONS: Record<string, string> = {
-  emergency_siren: "🚨",
-  horn: "📯",
-  shouting: "🗣️",
-  dog_barking: "🐕",
-  alarm: "🔔",
-  vehicle_approaching: "🚗",
-  bicycle_bell: "🔔",
-  tire_screech: "⚠️",
-  footsteps_running: "👟",
-  glass_breaking: "💥",
-  car_alarm: "🚨",
-  construction_noise: "🔨",
-  door_slam: "🚪",
-  train: "🚂",
-  aircraft: "✈️",
-};
-
-const URGENCY_COLORS: Record<string, string> = {
-  critical: "#FF4444",
-  high: "#FF8800",
-  medium: "#FFCC00",
-  low: "#88CC44",
-  none: "#555",
-};
 
 export default function HomeScreen() {
   const {
@@ -44,10 +19,9 @@ export default function HomeScreen() {
     chunksSent,
     startListening,
     stopListening,
-  } = useSoundDetection(undefined, true); // mock=true until model is trained
+  } = useSoundDetection(undefined, true); // mock=true until model is ready
 
   // ── Status indicator state ───────────────────────────────────────
-
   const indicatorState = isListening
     ? "active"
     : hasPermission
@@ -58,91 +32,83 @@ export default function HomeScreen() {
     hasPermission === null
       ? "Requesting mic access…"
       : !hasPermission
-        ? "⚠️ Microphone permission denied"
+        ? "⚠️ Microphone access needed"
         : isListening
           ? "Listening…"
-          : "Ready";
+          : "Ready to monitor";
 
   const subtitle = isListening
-    ? `${isConnected ? "🟢 Connected" : "🔴 Connecting…"} · Chunks: ${chunksSent}`
+    ? `${isConnected ? "🟢 Connected" : "🔴 Connecting…"} · ${chunksSent} chunks sent`
     : undefined;
-
-  // ── Render a single detection row ────────────────────────────────
-
-  const renderDetection = ({ item }: { item: Detection }) => {
-    const icon = SOUND_ICONS[item.sound_type] ?? "🔊";
-    const color = URGENCY_COLORS[item.urgency] ?? "#555";
-    const label = item.sound_type.replace(/_/g, " ");
-
-    return (
-      <View style={styles.detectionRow}>
-        <Text style={styles.detectionIcon}>{icon}</Text>
-        <View style={styles.detectionInfo}>
-          <Text style={[styles.detectionLabel, { color }]}>{label}</Text>
-          <Text style={styles.detectionMeta}>
-            {(item.confidence * 100).toFixed(0)}% · {item.urgency}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   return (
     <PageContainer>
       <View style={styles.content}>
-        {/* Status */}
-        <StatusIndicator
-          state={indicatorState}
-          label={statusLabel}
-          subtitle={subtitle}
-        />
+        {/* ── Header ────────────────────────────────────── */}
+        <Text style={styles.header}>
+          {isListening ? "Monitoring" : "Shadow-Sound"}
+        </Text>
 
-        {/* Last detected sound */}
-        {lastDetection && (
-          <View style={styles.lastDetection}>
-            <Text style={styles.lastDetectionIcon}>
-              {SOUND_ICONS[lastDetection.sound_type] ?? "🔊"}
-            </Text>
-            <Text style={[
-              styles.lastDetectionLabel,
-              { color: URGENCY_COLORS[lastDetection.urgency] ?? "#fff" },
-            ]}>
-              {lastDetection.sound_type.replace(/_/g, " ")}
-            </Text>
-            <Text style={styles.lastDetectionConfidence}>
-              {(lastDetection.confidence * 100).toFixed(0)}% confidence
-            </Text>
+        {/* ── Sonar Visualization ───────────────────────── */}
+        <View style={styles.sonarArea}>
+          <SonarPulse active={isListening} size={220} />
+
+          {/* Overlay the status on top of the sonar */}
+          <View style={styles.statusOverlay}>
+            <StatusIndicator
+              state={indicatorState}
+              label={statusLabel}
+              subtitle={subtitle}
+            />
           </View>
+        </View>
+
+        {/* ── Primary Detection Card ───────────────────── */}
+        {lastDetection && (
+          <DetectionCard detection={lastDetection} isPrimary />
         )}
 
-        {/* Start / Stop button */}
+        {/* ── Start / Stop Button ──────────────────────── */}
         <PermissionGate
           status={hasPermission}
-          deniedMessage="Please enable microphone access in your device settings."
+          deniedMessage="Please enable microphone access in your device settings to use Shadow-Sound."
           pendingMessage="Requesting mic access…"
         >
           <Button
             variant={isListening ? "secondary" : "primary"}
             size="large"
+            fullWidth
             onPress={isListening ? stopListening : startListening}
           >
-            {isListening ? "Stop Listening" : "Start Listening"}
+            {isListening ? "⏹  Stop Monitoring" : "▶  Start Monitoring"}
           </Button>
         </PermissionGate>
 
-        {/* Recent alerts log */}
-        {recentDetections.length > 0 && (
-          <View style={styles.recentContainer}>
+        {/* ── Recent Detections ─────────────────────────── */}
+        {recentDetections.length > 1 && (
+          <View style={styles.recentSection}>
             <Text style={styles.recentTitle}>Recent Alerts</Text>
             <FlatList
-              data={recentDetections}
-              renderItem={renderDetection}
+              data={recentDetections.slice(1)} // skip the primary one
+              renderItem={({ item }) => <DetectionCard detection={item} />}
               keyExtractor={(_, idx) => idx.toString()}
               style={styles.recentList}
               scrollEnabled={true}
+              showsVerticalScrollIndicator={false}
             />
           </View>
         )}
+
+        {/* ── Sound Category Grid (idle only) ──────────── */}
+        {!isListening && recentDetections.length === 0 && (
+          <View style={styles.categoriesSection}>
+            <Text style={styles.categoriesTitle}>Sounds We Detect</Text>
+            <SoundCategoryGrid />
+          </View>
+        )}
+
+        {/* Bottom spacer for floating nav bar */}
+        <View style={{ height: 80 }} />
       </View>
     </PageContainer>
   );
@@ -153,65 +119,52 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 24,
-    paddingVertical: 32,
+    paddingTop: 8,
   },
-  lastDetection: {
-    alignItems: "center",
-    paddingVertical: 16,
-  },
-  lastDetectionIcon: {
-    fontSize: 48,
+  header: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+    textAlign: "center",
     marginBottom: 8,
   },
-  lastDetectionLabel: {
-    fontSize: 22,
-    fontWeight: "700",
-    textTransform: "capitalize",
-    marginBottom: 4,
+  sonarArea: {
+    alignItems: "center",
+    justifyContent: "center",
+    height: 260,
+    marginBottom: 16,
   },
-  lastDetectionConfidence: {
-    fontSize: 14,
-    color: "#999",
+  statusOverlay: {
+    position: "absolute",
+    bottom: 0,
+    alignItems: "center",
   },
-  recentContainer: {
-    width: "100%",
-    paddingHorizontal: 20,
-    maxHeight: 200,
+
+  // Recent detections
+  recentSection: {
+    flex: 1,
+    marginTop: 20,
+    maxHeight: 220,
   },
   recentTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#ccc",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   recentList: {
     flexGrow: 0,
   },
-  detectionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333",
+
+  // Sound categories (idle)
+  categoriesSection: {
+    marginTop: 16,
   },
-  detectionIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  detectionInfo: {
-    flex: 1,
-  },
-  detectionLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    textTransform: "capitalize",
-  },
-  detectionMeta: {
-    fontSize: 12,
+  categoriesTitle: {
+    fontSize: 16,
+    fontWeight: "700",
     color: "#888",
-    marginTop: 2,
+    textAlign: "center",
+    marginBottom: 14,
   },
 });

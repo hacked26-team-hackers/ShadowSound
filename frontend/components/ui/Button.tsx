@@ -19,12 +19,13 @@ export default function Button({
 }: ButtonProps) {
   return (
     <Pressable
-      style={[
+      style={({ pressed }) => [
         styles.base,
         styles[variant],
         styles[`${size}Size`],
         fullWidth && styles.fullWidth,
         disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
       ]}
       onPress={onPress}
       disabled={disabled}
@@ -49,39 +50,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primary: {
-    backgroundColor: "#fff",
+    backgroundColor: "#00E5A0",
   },
   secondary: {
-    backgroundColor: "#333",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1,
+    borderColor: "#333",
   },
   outline: {
     backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#00E5A0",
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.97 }],
   },
   smallSize: {
     width: 120,
     height: 40,
   },
   mediumSize: {
-    width: 152,
+    width: 160,
     height: 48,
   },
   largeSize: {
-    width: 200,
     height: 56,
+    paddingHorizontal: 32,
   },
   fullWidth: {
     width: "100%",
   },
   baseText: {
-    color: "#000",
-    fontSize: 14,
-    fontWeight: "500",
-    letterSpacing: 0.1,
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   primaryText: {
     color: "#000",
@@ -90,9 +96,9 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   outlineText: {
-    color: "#fff",
+    color: "#00E5A0",
   },
   disabledText: {
-    color: "#999",
+    color: "#666",
   },
 });
